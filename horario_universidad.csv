@@ -1,0 +1,21 @@
+SlotID,Dia,Mes,Año,HoraInicio,HoraFin,Sala
+1,Lunes,03,2025,08:00,10:00,Sala A
+2,Lunes,03,2025,10:00,12:00,Sala B
+3,Lunes,03,2025,13:00,15:00,Sala C
+4,Lunes,03,2025,15:00,17:00,Sala D
+5,Martes,03,2025,08:00,10:00,Sala A
+6,Martes,03,2025,10:00,12:00,Sala B
+7,Martes,03,2025,13:00,15:00,Sala C
+8,Martes,03,2025,15:00,17:00,Sala D
+9,Miércoles,03,2025,08:00,10:00,Sala A
+10,Miércoles,03,2025,10:00,12:00,Sala B
+11,Miércoles,03,2025,13:00,15:00,Sala C
+12,Miércoles,03,2025,15:00,17:00,Sala D
+13,Jueves,03,2025,08:00,10:00,Sala A
+14,Jueves,03,2025,10:00,12:00,Sala B
+15,Jueves,03,2025,13:00,15:00,Sala C
+16,Jueves,03,2025,15:00,17:00,Sala D
+17,Viernes,03,2025,08:00,10:00,Sala A
+18,Viernes,03,2025,10:00,12:00,Sala B
+19,Viernes,03,2025,13:00,15:00,Sala C
+20,Viernes,03,2025,15:00,17:00,Sala D
