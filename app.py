@@ -1,5 +1,7 @@
 from flask import Flask, jsonify
+from flask_cors import CORS
 import pandas as pd
+import pymysql
 from datetime import datetime, timedelta
 
 from flask_cors import CORS
@@ -7,6 +9,14 @@ from flask_cors import CORS
 app = Flask(__name__)
 
 CORS(app)
+
+db_config = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': '',
+    'database': 'ube_titulacion'
+}
+
 
 def dividir_en_slots(inicio, fin, duracion=40):
     slots = []
@@ -18,28 +28,36 @@ def dividir_en_slots(inicio, fin, duracion=40):
 
 @app.route("/asignaciones", methods=["GET"])
 def asignaciones():
+    conn = pymysql.connect(**db_config)
+
     # 1. Leer CSVs
-    estudiantes_df = pd.read_csv("estudiantes.csv")
-    profesores_df = pd.read_csv("horario_profesores.csv")
-    universidad_df = pd.read_csv("horario_universidad.csv")
+     # 1. Leer desde la base de datos
+    estudiantes_df = pd.read_sql_query("SELECT * FROM disponibilidad_defensa_tesis where estado=1", conn)
+    profesores_df = pd.read_sql_query("SELECT * FROM horarios_tribunales where estado=1", conn)
+    universidad_df = pd.read_sql_query("SELECT * FROM horario_sala_disponible where estado=1", conn)
+
 
     # 2. Preparar datos
     dias_semana = {
         'Lunes': 1, 'Martes': 2, 'Miércoles': 3,
         'Jueves': 4, 'Viernes': 5, 'Sábado': 6, 'Domingo': 7
     }
-    universidad_df['DiaTexto'] = universidad_df['Dia']
-    universidad_df['Dia'] = universidad_df['Dia'].map(dias_semana)
+    universidad_df['DiaTexto'] = universidad_df['dia_semana']
+    universidad_df['Dia'] = universidad_df['dia_semana'].map(dias_semana)
 
     def convertir_dt(row, hora_col):
-        return datetime.strptime(f"{row['Año']}-{row['Mes']:02d}-{row['Dia']:02d} {row[hora_col]}", "%Y-%m-%d %H:%M")
+        hora_str = str(row[hora_col])
+        if "day" in hora_str:  # por si viene como timedelta
+            hora_str = hora_str.split(" ")[-1]
+        return datetime.strptime(f"{row['anio']}-{row['mes']:02d}-{row['dia']:02d} {hora_str}", "%Y-%m-%d %H:%M:%S")
 
-    profesores_df['InicioDT'] = profesores_df.apply(lambda row: convertir_dt(row, 'HoraInicio'), axis=1)
-    profesores_df['FinDT'] = profesores_df.apply(lambda row: convertir_dt(row, 'HoraFin'), axis=1)
-    universidad_df['InicioDT'] = universidad_df.apply(lambda row: convertir_dt(row, 'HoraInicio'), axis=1)
-    universidad_df['FinDT'] = universidad_df.apply(lambda row: convertir_dt(row, 'HoraFin'), axis=1)
+    profesores_df['InicioDT'] = profesores_df.apply(lambda row: convertir_dt(row, 'hora_inicio'), axis=1)
+    profesores_df['FinDT'] = profesores_df.apply(lambda row: convertir_dt(row, 'hora_fin'), axis=1)
 
-    estudiantes_df = estudiantes_df.rename(columns={"Dia": "day", "Mes": "month", "Año": "year"})
+    universidad_df['InicioDT'] = universidad_df.apply(lambda row: convertir_dt(row, 'hora_inicio'), axis=1)
+    universidad_df['FinDT'] = universidad_df.apply(lambda row: convertir_dt(row, 'hora_fin'), axis=1)
+
+    estudiantes_df = estudiantes_df.rename(columns={"dia": "day", "mes": "month", "anio": "year"})
     estudiantes_df["Fecha"] = pd.to_datetime(estudiantes_df[["year", "month", "day"]])
 
     # 3. Generar slots
@@ -47,7 +65,7 @@ def asignaciones():
     for _, row in universidad_df.iterrows():
         for inicio, fin in dividir_en_slots(row['InicioDT'], row['FinDT']):
             slots_aulas.append({
-                'Sala': row['Sala'],
+                'Sala': row['id_sala'],
                 'Inicio': inicio,
                 'Fin': fin,
                 'Fecha': inicio.date()
@@ -57,7 +75,7 @@ def asignaciones():
     for _, row in profesores_df.iterrows():
         for inicio, fin in dividir_en_slots(row['InicioDT'], row['FinDT']):
             slots_profesores.append({
-                'ProfesorID': row['ProfesorID'],
+                'ProfesorID': row['id_tribunal'],
                 'Inicio': inicio,
                 'Fin': fin,
                 'Fecha': inicio.date()
@@ -78,8 +96,8 @@ def asignaciones():
                     slot_pro["Inicio"] == slot_alu["Inicio"] and
                     slot_pro["Fin"] == slot_alu["Fin"]):
                     combinaciones.append({
-                        "EstudianteID": est["EstudianteID"],
-                        "TituloTesis": est["TesisTitulo"],
+                        "EstudianteID": est["id_disponibilidad"],
+                        "TituloTesis": est["titulo"],
                         "HoraInicio": slot_alu["Inicio"],
                         "HoraFin": slot_alu["Fin"],
                         "ProfesorID": slot_pro["ProfesorID"],
