@@ -144,7 +144,55 @@ def asignaciones():
         slots_ocupados_profesor.setdefault(profesor_id, set()).add(hora_inicio)
         slots_ocupados_aula.setdefault(sala, set()).add(hora_inicio)
 
+     
+
+    # Guardar en la base de datos
+    for ev in eventos:
+        estudiante_id = next((c["EstudianteID"] for c in combinaciones if c["TituloTesis"] == ev["title"] and c["HoraInicio"] == datetime.strptime(ev["start"], "%Y-%m-%dT%H:%M:%S")), None)
+        profesor_id = next((c["ProfesorID"] for c in combinaciones if c["TituloTesis"] == ev["title"] and c["HoraInicio"] == datetime.strptime(ev["start"], "%Y-%m-%dT%H:%M:%S")), None)
+        sala = next((c["Sala"] for c in combinaciones if c["TituloTesis"] == ev["title"] and c["HoraInicio"] == datetime.strptime(ev["start"], "%Y-%m-%dT%H:%M:%S")), None)
+
+        with conn.cursor() as cursor:
+            cursor.execute("UPDATE asignaciones_eventos SET estado = 2 WHERE estudiante_id=%s", (estudiante_id,))
+
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO asignaciones_eventos (estudiante_id, titulo_tesis, hora_inicio, hora_fin, profesor_id, sala)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (estudiante_id, ev["title"], ev["start"], ev["end"], profesor_id, sala))
+    conn.commit()
+
     return jsonify(eventos)
+
+
+@app.route("/asignaciones/guardadas", methods=["GET"])
+def asignaciones_guardadas():
+    conn = pymysql.connect(**db_config)
+    query = """
+        SELECT id, estudiante_id, titulo_tesis, hora_inicio, hora_fin, profesor_id, sala,estado
+        FROM asignaciones_eventos
+    """
+    df = pd.read_sql_query(query, conn)
+
+    eventos = []
+    for _, row in df.iterrows():
+        eventos.append({
+            "id": row["id"],
+            "title": row["titulo_tesis"],
+            "start": row["hora_inicio"].strftime("%Y-%m-%dT%H:%M:%S"),
+            "end": row["hora_fin"].strftime("%Y-%m-%dT%H:%M:%S"),
+            "extendedProps": {
+                "profesorId": row["profesor_id"],
+                "sala": row["sala"],
+                "estudianteId": row["estudiante_id"],
+                "calendar": "Success" if row["estado"] == 1 else "Danger"
+            }
+        })
+
+    return jsonify(eventos)
+
+
 
 if __name__ == "__main__":
     app.run(debug=True)
+
